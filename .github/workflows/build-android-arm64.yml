@@ -1,0 +1,45 @@
+name: Build Android arm64 libspeedhack (适配灵画师)
+on: [workflow_dispatch] # 仅手动触发，避免误编译
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 拉取源码
+        uses: actions/checkout@v4
+
+      # 关键修复：安装Android NDK（安卓官方编译工具，替代系统gcc）
+      - name: 配置Android NDK
+        uses: nttld/setup-ndk@v1
+        with:
+          ndk-version: r25b # 适配HyperOS/Android 14的稳定版本
+          add-to-path: true
+
+      # 核心编译：适配该仓库的Makefile，用NDK的arm64编译器
+      - name: 编译arm64-v8a libspeedhack.so
+        run: |
+          # 强制指定NDK的arm64编译器（适配该仓库Makefile）
+          export CC=${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android29-clang
+          export CXX=${ANDROID_NDK_ROOT}/toolchains/llvm/prebuilt/linux-x86_64/bin/aarch64-linux-android29-clang++
+          
+          # 清理并编译（严格适配该仓库的Makefile）
+          make clean
+          make ARCH=arm64 \
+               CC=$CC \
+               CXX=$CXX \
+               CFLAGS="-fPIC -O2 -DANDROID" \
+               LDFLAGS="-shared -fPIC"
+      
+      # 打包产物（避免路径错误）
+      - name: 打包产物
+        run: |
+          mkdir -p output
+          cp libspeedhack.so output/libspeedhack-arm64-v8a.so
+          zip -r libspeedhack-arm64.zip output/
+
+      # 上传产物（可直接下载）
+      - name: 上传编译产物
+        uses: actions/upload-artifact@v4
+        with:
+          name: libspeedhack-arm64-v8a
+          path: libspeedhack-arm64.zip
